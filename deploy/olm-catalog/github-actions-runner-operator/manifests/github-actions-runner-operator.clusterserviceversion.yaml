@@ -282,7 +282,7 @@ spec:
   - ci/cd
   links:
   - name: Github Actions Runner Operator
-    url: https://github-actions-runner-operator.domain
+    url: https://github.com/evryfs/github-actions-runner-operator/
   maintainers:
   - email: david@davidkarlsen.com
     name: davidkarlsen
