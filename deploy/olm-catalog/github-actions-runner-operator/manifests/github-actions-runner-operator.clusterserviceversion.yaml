@@ -1,0 +1,293 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "garo.tietoevry.com/v1alpha1",
+          "kind": "GithubActionRunner",
+          "metadata": {
+            "name": "test",
+            "namespace": "actions-runner"
+          },
+          "spec": {
+            "maxRunners": 1,
+            "minRunners": 1,
+            "organization": "yourOrg",
+            "podSpec": {
+              "containers": [
+                {
+                  "env": [
+                    {
+                      "name": "RUNNER_DEBUG",
+                      "value": "true"
+                    },
+                    {
+                      "name": "DOCKER_TLS_CERTDIR",
+                      "value": "/certs"
+                    },
+                    {
+                      "name": "DOCKER_HOST",
+                      "value": "tcp://localhost:2376"
+                    },
+                    {
+                      "name": "DOCKER_TLS_VERIFY",
+                      "value": "1"
+                    },
+                    {
+                      "name": "DOCKER_CERT_PATH",
+                      "value": "/certs/client"
+                    },
+                    {
+                      "name": "GH_ORG",
+                      "value": "yourOrg"
+                    }
+                  ],
+                  "envFrom": [
+                    {
+                      "secretRef": {
+                        "name": "actions-runner"
+                      }
+                    }
+                  ],
+                  "image": "quay.io/evryfs/github-actions-runner:latest",
+                  "imagePullPolicy": "Always",
+                  "lifecycle": {
+                    "preStop": {
+                      "exec": {
+                        "command": [
+                          "/bin/bash",
+                          "-c",
+                          "/remove_runner.sh"
+                        ]
+                      }
+                    }
+                  },
+                  "name": "runner",
+                  "resources": {},
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/certs",
+                      "name": "docker-certs"
+                    },
+                    {
+                      "mountPath": "/home/runner/.m2",
+                      "name": "mvn-repo"
+                    },
+                    {
+                      "mountPath": "/home/runner/.m2/settings.xml",
+                      "name": "settings-xml"
+                    }
+                  ]
+                },
+                {
+                  "env": [
+                    {
+                      "name": "DOCKER_TLS_CERTDIR",
+                      "value": "/certs"
+                    }
+                  ],
+                  "image": "docker:stable-dind",
+                  "imagePullPolicy": "Always",
+                  "name": "docker",
+                  "resources": {},
+                  "securityContext": {
+                    "privileged": true
+                  },
+                  "volumeMounts": [
+                    {
+                      "mountPath": "/var/lib/docker",
+                      "name": "docker-storage"
+                    },
+                    {
+                      "mountPath": "/certs",
+                      "name": "docker-certs"
+                    }
+                  ]
+                }
+              ],
+              "volumes": [
+                {
+                  "emptyDir": {},
+                  "name": "mvn-repo"
+                },
+                {
+                  "emptyDir": {},
+                  "name": "docker-storage"
+                },
+                {
+                  "emptyDir": {},
+                  "name": "docker-certs"
+                },
+                {
+                  "configMap": {
+                    "defaultMode": 420,
+                    "name": "settings-xml"
+                  },
+                  "name": "settings-xml"
+                }
+              ]
+            },
+            "tokenRef": {
+              "key": "GH_TOKEN",
+              "name": "actions-runner"
+            }
+          }
+        }
+      ]
+    capabilities: Basic Install
+  name: github-actions-runner-operator.v0.2.1
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: GithubActionRunner is the Schema for the githubactionrunners API
+      kind: GithubActionRunner
+      name: githubactionrunners.garo.tietoevry.com
+      version: v1alpha1
+  description: Operator for automating GitHub Action runners
+  displayName: GitHub Actions Runner Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments:
+      - name: github-actions-runner-operator
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: github-actions-runner-operator
+          strategy: {}
+          template:
+            metadata:
+              labels:
+                name: github-actions-runner-operator
+            spec:
+              containers:
+              - command:
+                - github-actions-runner-operator
+                env:
+                - name: WATCH_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.annotations['olm.targetNamespaces']
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: OPERATOR_NAME
+                  value: github-actions-runner-operator
+                image: garo:latest
+                imagePullPolicy: Always
+                name: github-actions-runner-operator
+                resources: {}
+              serviceAccountName: github-actions-runner-operator
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - services
+          - services/finalizers
+          - endpoints
+          - persistentvolumeclaims
+          - events
+          - configmaps
+          - secrets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          - daemonsets
+          - replicasets
+          - statefulsets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - servicemonitors
+          verbs:
+          - get
+          - create
+        - apiGroups:
+          - apps
+          resourceNames:
+          - github-actions-runner-operator
+          resources:
+          - deployments/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - get
+        - apiGroups:
+          - apps
+          resources:
+          - replicasets
+          - deployments
+          verbs:
+          - get
+        - apiGroups:
+          - garo.tietoevry.com
+          resources:
+          - '*'
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        serviceAccountName: github-actions-runner-operator
+    strategy: deployment
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - github
+  - actions
+  - runner
+  - operator
+  - ci
+  - ci/cd
+  links:
+  - name: Github Actions Runner Operator
+    url: https://github-actions-runner-operator.domain
+  maintainers:
+  - email: david@davidkarlsen.com
+    name: davidkarlsen
+  maturity: alpha
+  provider:
+    name: github-actions-runner-operator
+    url: https://github.com/evryfs/github-actions-runner-operator/
+  version: 0.2.1
