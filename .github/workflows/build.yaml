@@ -30,6 +30,7 @@ jobs:
       - name: build
         run: |
           operator-sdk build garo:latest
+          operator-sdk bundle create quay.io/evryfs/github-actions-runner-operator-bundle --channels alpha
       - name: Create k8s Kind Cluster
         uses: helm/kind-action@v1.0.0-rc.1
         with:
