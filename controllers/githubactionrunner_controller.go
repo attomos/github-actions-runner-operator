@@ -23,6 +23,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
+	"github.com/palantir/go-githubapp/githubapp"
 	"github.com/thoas/go-funk"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -204,8 +205,42 @@ func (r *GithubActionRunnerReconciler) listRelatedPods(cr *garov1alpha1.GithubAc
 	return podList, err
 }
 
+func (r *GithubActionRunnerReconciler) getClient(cr *garov1alpha1.GithubActionRunner) (*github.Client, error) {
+	config := githubapp.Config{}
+	config.SetValuesFromEnv("")
+
+	clientCreator, err := githubapp.NewDefaultCachingClientCreator(config,
+		githubapp.WithClientUserAgent("GithubActionsRunnerOperator"),
+		githubapp.WithClientTimeout(time.Second*4),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.App.PrivateKey != "" {
+		appClient, err := clientCreator.NewAppClient()
+		if err != nil {
+			return nil, err
+		}
+
+		installService := githubapp.NewInstallationsService(appClient)
+		installation, err := installService.GetByOwner(context.TODO(), cr.Spec.Organization)
+		if err == nil {
+			return clientCreator.NewInstallationClient(installation.ID)
+		}
+	} else {
+		token, err := r.tokenForRef(cr)
+		if err == nil {
+			return clientCreator.NewTokenClient(token)
+		}
+	}
+
+	return nil, err
+}
+
 func (r *GithubActionRunnerReconciler) tokenForRef(cr *garov1alpha1.GithubActionRunner) (string, error) {
 	var secret corev1.Secret
+
 	err := r.Client.Get(context.TODO(), client.ObjectKey{Name: cr.Spec.TokenRef.Name, Namespace: cr.Namespace}, &secret)
 
 	if err != nil {
