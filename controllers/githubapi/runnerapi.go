@@ -3,7 +3,8 @@ package githubapi
 import (
 	"context"
 	"github.com/google/go-github/v32/github"
-	"golang.org/x/oauth2"
+	"github.com/palantir/go-githubapp/githubapp"
+	"time"
 )
 
 //IRunnerAPI is a service towards GitHubs runners
@@ -19,13 +20,42 @@ func NewRunnerAPI() runnerAPI {
 	return runnerAPI{}
 }
 
+func getClient(organization string, token string) (*github.Client, error) {
+	config := githubapp.Config{}
+	config.SetValuesFromEnv("")
+
+	clientCreator, err := githubapp.NewDefaultCachingClientCreator(config,
+		githubapp.WithClientUserAgent("GithubActionsRunnerOperator"),
+		githubapp.WithClientTimeout(time.Second*4),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if config.App.PrivateKey != "" {
+		appClient, err := clientCreator.NewAppClient()
+		if err != nil {
+			return nil, err
+		}
+
+		installService := githubapp.NewInstallationsService(appClient)
+		installation, err := installService.GetByOwner(context.TODO(), organization)
+		if err == nil {
+			return clientCreator.NewInstallationClient(installation.ID)
+		}
+	} else {
+		return clientCreator.NewTokenClient(token)
+	}
+
+	return nil, err
+}
+
 // Return all runners for the org
 func (r runnerAPI) GetRunners(organization string, repository string, token string) ([]*github.Runner, error) {
-	ts := oauth2.StaticTokenSource(&(oauth2.Token{
-		AccessToken: token,
-	}))
-	tc := oauth2.NewClient(context.TODO(), ts)
-	client := github.NewClient(tc)
+	client, err := getClient(organization, token)
+	if err != nil {
+		return nil, err
+	}
 
 	var allRunners []*github.Runner
 	opts := &github.ListOptions{PerPage: 30}
