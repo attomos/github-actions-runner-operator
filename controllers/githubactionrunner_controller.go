@@ -148,7 +148,7 @@ func (r *GithubActionRunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result,
 // SetupWithManager configures the controller by using the passed mgr
 func (r *GithubActionRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// create an index for pod status since we filter on it
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &corev1.Pod{}, "status.phase", func(rawObj runtime.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(&corev1.Pod{}, "status.phase", func(rawObj runtime.Object) []string {
 		pod := rawObj.(*corev1.Pod)
 		return []string{string(pod.Status.Phase)}
 	}); err != nil {
